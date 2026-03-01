@@ -3,3 +3,4 @@ dist/
 *.sqlite
 *.sqlite-journal
 .solitary-coding/
+packages/cli/client/

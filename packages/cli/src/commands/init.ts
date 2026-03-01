@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ClaudeCli } from '@solitary-coding/server/runner/claude';
 
-const CONFIG_TEMPLATE = `import { defineConfig } from '@solitary-coding/shared';
+const CONFIG_TEMPLATE = `import { defineConfig } from 'solitary-coding';
 
 export default defineConfig({
   port: 4000,
@@ -27,9 +27,12 @@ export default defineConfig({
 });
 `;
 
-export async function initCommand() {
-  const cwd = process.cwd();
+export async function initCommand(projectDir?: string) {
+  const cwd = projectDir ? path.resolve(projectDir) : process.cwd();
 
+  if (projectDir) {
+    console.log(`Target project: ${cwd}`);
+  }
   console.log('Initializing solitary-coding...\n');
 
   // 1. Check if claude CLI is available
@@ -43,15 +46,15 @@ export async function initCommand() {
     );
     process.exit(1);
   }
-  console.log('✓ Claude Code CLI detected');
+  console.log('  Claude Code CLI detected');
 
   // 2. Create config file
   const configPath = path.join(cwd, 'solitary-coding.config.ts');
   if (fs.existsSync(configPath)) {
-    console.log('✓ Config file already exists');
+    console.log('  Config file already exists');
   } else {
     fs.writeFileSync(configPath, CONFIG_TEMPLATE, 'utf-8');
-    console.log('✓ Created solitary-coding.config.ts');
+    console.log('  Created solitary-coding.config.ts');
   }
 
   // 3. Create directories
@@ -63,7 +66,7 @@ export async function initCommand() {
   for (const dir of dirs) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  console.log('✓ Created .solitary-coding/ directory structure');
+  console.log('  Created .solitary-coding/ directory structure');
 
   // 4. Add .gitkeep files
   for (const sub of ['docs', 'logs']) {
@@ -73,20 +76,26 @@ export async function initCommand() {
     }
   }
 
-  // 5. Check .gitignore
+  // 5. Update .gitignore
   const gitignorePath = path.join(cwd, '.gitignore');
+  const gitignoreEntries = [
+    '.solitary-coding/db.sqlite',
+    '.solitary-coding/db.sqlite-journal',
+    '.solitary-coding/logs/',
+  ];
+
   if (fs.existsSync(gitignorePath)) {
-    const content = fs.readFileSync(gitignorePath, 'utf-8');
+    let content = fs.readFileSync(gitignorePath, 'utf-8');
     const additions: string[] = [];
-    if (!content.includes('.solitary-coding/db.sqlite')) {
-      additions.push('.solitary-coding/db.sqlite');
-    }
-    if (!content.includes('.solitary-coding/logs/')) {
-      additions.push('.solitary-coding/logs/');
+    for (const entry of gitignoreEntries) {
+      if (!content.includes(entry)) {
+        additions.push(entry);
+      }
     }
     if (additions.length > 0) {
-      console.log('\nConsider adding these to your .gitignore:');
-      additions.forEach((a) => console.log(`  ${a}`));
+      content = content.trimEnd() + '\n\n# solitary-coding\n' + additions.join('\n') + '\n';
+      fs.writeFileSync(gitignorePath, content, 'utf-8');
+      console.log('  Updated .gitignore');
     }
   }
 

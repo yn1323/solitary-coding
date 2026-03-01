@@ -1,18 +1,51 @@
 {
   "name": "solitary-coding",
   "version": "0.0.1",
+  "description": "AI-powered autonomous coding assistant - automates task execution with Claude Code CLI",
   "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "coding",
+    "automation",
+    "claude",
+    "task-runner",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yn1323/solitary-coding.git"
+  },
+  "main": "./dist/lib.js",
+  "types": "./dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.js"
+    }
+  },
   "bin": {
     "solitary-coding": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "client"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "prepublishOnly": "cd ../.. && npm run build"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
-    "@solitary-coding/server": "*",
-    "@solitary-coding/shared": "*",
-    "jiti": "^2.4.0"
+    "@hono/zod-validator": "^0.4.0",
+    "better-sqlite3": "^11.0.0",
+    "drizzle-orm": "^0.38.0",
+    "hono": "^4.7.0",
+    "jiti": "^2.4.0",
+    "zod": "^3.24.0"
   }
 }

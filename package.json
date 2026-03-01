@@ -5,9 +5,11 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w packages/shared && npm run build -w packages/server && npm run build -w packages/client && npm run build -w packages/cli",
+    "build": "npm run build -w packages/shared && npm run build -w packages/server && npm run build -w packages/client && npm run build -w packages/cli && npm run bundle:client",
+    "bundle:client": "rm -rf packages/cli/client && cp -r packages/client/dist packages/cli/client",
     "dev": "npm run dev --workspaces --if-present",
-    "clean": "rm -rf packages/*/dist",
+    "clean": "rm -rf packages/*/dist packages/cli/client",
+    "publish:cli": "npm run build && cd packages/cli && npm publish",
     "type-check": "tsc --noEmit",
     "type-check:client": "tsc --noEmit -p packages/client/tsconfig.json",
     "test": "vitest run",

@@ -14,14 +14,41 @@ AIを用いたアプリケーション開発ヘルプツール。
 | バックエンド | Hono |
 | データベース | SQLite |
 | AI実行 | Claude Code CLI (ラップ) |
-| 配布形態 | npm パッケージ (対象リポジトリに `devDependencies` としてインストール) |
+| 配布形態 | npm パッケージ (グローバル or npx で実行。対象リポジトリへのインストール不要) |
 
 ## 配布・利用方法
 
+### 方法1: npx で直接実行（推奨・インストール不要）
+
 ```bash
-npm install -D solitary-coding
+cd /path/to/target-project
 npx solitary-coding init   # 設定ファイル・ディレクトリ生成
 npx solitary-coding start  # ダッシュボード起動 + タスクランナー開始
+```
+
+### 方法2: グローバルインストール
+
+```bash
+npm install -g solitary-coding
+cd /path/to/target-project
+solitary-coding init
+solitary-coding start
+```
+
+### 方法3: 別ディレクトリから対象プロジェクトを指定
+
+```bash
+npx solitary-coding start --project /path/to/target-project
+npx solitary-coding start --project /path/to/target-project --port 5000
+```
+
+### 方法4: devDependencies としてインストール
+
+```bash
+cd /path/to/target-project
+npm install -D solitary-coding
+npx solitary-coding init
+npx solitary-coding start
 ```
 
 ### 生成されるファイル
@@ -172,10 +199,43 @@ pending → prioritizing → planned → executing → testing → completed
 ```
 solitary-coding/
 ├── packages/
-│   ├── cli/          # CLIエントリポイント (init, start)
+│   ├── cli/          # CLIエントリポイント (init, start) + npm公開パッケージ
 │   ├── server/       # Honoバックエンド + タスクランナー
-│   ├── client/       # Vite + React + Shadcn ダッシュボード
+│   ├── client/       # Vite + React + Tailwind ダッシュボード
 │   └── shared/       # 共有型定義・ユーティリティ
 ├── package.json      # ルート (monorepo)
 └── tsconfig.json
+```
+
+## npm公開
+
+monorepoだが、公開するのは `packages/cli` のみ（パッケージ名: `solitary-coding`）。
+ビルド時に server / shared のコードを tsup の `noExternal` でバンドルし、
+クライアントのビルド成果物を `packages/cli/client/` にコピーすることで、
+単一のnpmパッケージとして自己完結的に動作する。
+
+### ビルド & 公開フロー
+
+```bash
+# ビルド (ルートから)
+npm run build
+# → shared → server → client(vite build) → cli(tsup bundle) → client distコピー
+
+# 公開
+npm run publish:cli
+# → ビルド後、packages/cli で npm publish
+```
+
+### npm公開時のパッケージ構成
+
+```
+solitary-coding (npm)
+├── dist/
+│   ├── index.js       # CLI バイナリ (#!/usr/bin/env node)
+│   ├── lib.js         # ライブラリエントリ (defineConfig等)
+│   └── lib.d.ts       # 型定義
+├── client/            # ビルド済みダッシュボードUI
+│   ├── index.html
+│   └── assets/
+└── package.json
 ```
