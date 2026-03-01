@@ -1,0 +1,18 @@
+{
+  "name": "solitary-coding",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "solitary-coding": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@solitary-coding/server": "*",
+    "@solitary-coding/shared": "*",
+    "jiti": "^2.4.0"
+  }
+}

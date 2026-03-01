@@ -1,0 +1,22 @@
+{
+  "name": "solitary-coding-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w packages/shared && npm run build -w packages/server && npm run build -w packages/client && npm run build -w packages/cli",
+    "dev": "npm run dev --workspaces --if-present",
+    "clean": "rm -rf packages/*/dist",
+    "type-check": "tsc --noEmit",
+    "type-check:client": "tsc --noEmit -p packages/client/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
+  }
+}
