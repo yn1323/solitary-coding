@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
-    "@solitary-coding/server": "*",
-    "@solitary-coding/shared": "*",
+    "@solitary-coding/server": "workspace:*",
+    "@solitary-coding/shared": "workspace:*",
     "jiti": "^2.4.0"
   }
 }

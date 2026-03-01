@@ -1,12 +1,9 @@
 {
   "name": "solitary-coding-monorepo",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
-    "build": "npm run build -w packages/shared && npm run build -w packages/server && npm run build -w packages/client && npm run build -w packages/cli",
-    "dev": "npm run dev --workspaces --if-present",
+    "build": "pnpm --filter @solitary-coding/shared build && pnpm --filter @solitary-coding/server build && pnpm --filter @solitary-coding/client build && pnpm --filter solitary-coding build",
+    "dev": "pnpm -r dev",
     "clean": "rm -rf packages/*/dist",
     "type-check": "tsc --noEmit",
     "type-check:client": "tsc --noEmit -p packages/client/tsconfig.json",
@@ -18,5 +15,10 @@
     "tsup": "^8.4.0",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

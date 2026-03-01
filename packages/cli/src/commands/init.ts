@@ -27,8 +27,8 @@ export default defineConfig({
 });
 `;
 
-export async function initCommand() {
-  const cwd = process.cwd();
+export async function initCommand(targetDir?: string) {
+  const cwd = targetDir ?? process.cwd();
 
   console.log('Initializing solitary-coding...\n');
 

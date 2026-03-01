@@ -32,8 +32,8 @@ async function loadConfig(projectRoot: string): Promise<Config> {
   }
 }
 
-export async function startCommand() {
-  const cwd = process.cwd();
+export async function startCommand(targetDir?: string) {
+  const cwd = targetDir ?? process.cwd();
 
   // Check prerequisites
   const scDir = path.join(cwd, '.solitary-coding');
