@@ -3,15 +3,17 @@ import { useTasks } from '../hooks/use-tasks';
 import { useSystemStatus } from '../hooks/use-system-status';
 import { TaskList } from '../components/tasks/TaskList';
 import { TaskCreateDialog } from '../components/tasks/TaskCreateDialog';
+import { TaskEditDialog } from '../components/tasks/TaskEditDialog';
 import { TaskDocumentViewer } from '../components/tasks/TaskDocumentViewer';
 import { SystemStatus } from '../components/controls/SystemStatus';
-import { api } from '../lib/api';
+import { api, type Task } from '../lib/api';
 
 export function Dashboard() {
   const { tasks, loading, refresh } = useTasks();
   const { status, refresh: refreshStatus } = useSystemStatus();
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const handleTrigger = async () => {
     try {
@@ -32,8 +34,25 @@ export function Dashboard() {
     }
   };
 
+  const handleCancel = async () => {
+    if (!status?.currentTaskId) return;
+    if (!confirm('Stop the currently running task?')) return;
+    try {
+      await api.tasks.cancel(status.currentTaskId);
+      await refresh();
+      await refreshStatus();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Cancel failed');
+    }
+  };
+
   const handleTaskCreated = async () => {
     setShowCreateDialog(false);
+    await refresh();
+  };
+
+  const handleTaskUpdated = async () => {
+    setEditingTask(null);
     await refresh();
   };
 
@@ -47,6 +66,8 @@ export function Dashboard() {
       alert(err instanceof Error ? err.message : 'Delete failed');
     }
   };
+
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -67,6 +88,14 @@ export function Dashboard() {
             >
               {status?.isPaused ? 'Resume' : 'Pause'}
             </button>
+            {status?.isRunning && (
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
+              >
+                Stop
+              </button>
+            )}
             <button
               onClick={handleTrigger}
               disabled={status?.isRunning}
@@ -101,13 +130,17 @@ export function Dashboard() {
               selectedTaskId={selectedTaskId}
               onSelect={setSelectedTaskId}
               onDelete={handleDelete}
+              onEdit={setEditingTask}
             />
           )}
         </div>
 
         {/* Document Viewer */}
         {selectedTaskId && (
-          <TaskDocumentViewer taskId={selectedTaskId} />
+          <TaskDocumentViewer
+            taskId={selectedTaskId}
+            errorMessage={selectedTask?.errorMessage ?? null}
+          />
         )}
       </main>
 
@@ -116,6 +149,15 @@ export function Dashboard() {
         <TaskCreateDialog
           onCreated={handleTaskCreated}
           onCancel={() => setShowCreateDialog(false)}
+        />
+      )}
+
+      {/* Edit Dialog */}
+      {editingTask && (
+        <TaskEditDialog
+          task={editingTask}
+          onUpdated={handleTaskUpdated}
+          onCancel={() => setEditingTask(null)}
         />
       )}
     </div>

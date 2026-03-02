@@ -23,6 +23,7 @@ export interface Task {
   discussion: string | null;
   plan: string | null;
   result: string | null;
+  errorMessage: string | null;
   executionPrompt: string | null;
   ciSteps: CiStep[] | null;
   startedAt: Date | null;

@@ -6,9 +6,16 @@ interface Props {
   selectedTaskId: number | null;
   onSelect: (id: number) => void;
   onDelete: (id: number) => void;
+  onEdit: (task: Task) => void;
 }
 
-export function TaskList({ tasks, selectedTaskId, onSelect, onDelete }: Props) {
+export function TaskList({
+  tasks,
+  selectedTaskId,
+  onSelect,
+  onDelete,
+  onEdit,
+}: Props) {
   if (tasks.length === 0) {
     return (
       <div className="p-6 text-center text-gray-500">
@@ -26,7 +33,7 @@ export function TaskList({ tasks, selectedTaskId, onSelect, onDelete }: Props) {
           <th className="px-6 py-3 font-medium">Title</th>
           <th className="px-6 py-3 font-medium">Status</th>
           <th className="px-6 py-3 font-medium">Retries</th>
-          <th className="px-6 py-3 font-medium w-20"></th>
+          <th className="px-6 py-3 font-medium w-28"></th>
         </tr>
       </thead>
       <tbody>
@@ -61,15 +68,26 @@ export function TaskList({ tasks, selectedTaskId, onSelect, onDelete }: Props) {
             </td>
             <td className="px-6 py-3">
               {task.status === 'pending' && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(task.id);
-                  }}
-                  className="text-sm text-red-500 hover:text-red-700"
-                >
-                  Delete
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(task);
+                    }}
+                    className="text-sm text-blue-500 hover:text-blue-700"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(task.id);
+                    }}
+                    className="text-sm text-red-500 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
               )}
             </td>
           </tr>

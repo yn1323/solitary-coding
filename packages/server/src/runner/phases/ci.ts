@@ -23,9 +23,13 @@ Respond with ONLY a JSON array, no other text:
 
   try {
     const match = result.stdout.match(/\[[\s\S]*\]/);
-    if (!match) return [];
+    if (!match) {
+      console.warn('CI detect: could not parse CI steps from Claude response');
+      return [];
+    }
     return JSON.parse(match[0]) as CiStep[];
-  } catch {
+  } catch (err) {
+    console.error('CI detect: failed to parse CI steps:', err);
     return [];
   }
 }

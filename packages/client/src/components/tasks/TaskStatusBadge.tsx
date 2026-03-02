@@ -1,4 +1,6 @@
-const STATUS_STYLES: Record<string, string> = {
+import type { TaskStatus } from '../../lib/api';
+
+const STATUS_STYLES: Record<TaskStatus, string> = {
   pending: 'bg-gray-100 text-gray-700',
   prioritizing: 'bg-blue-100 text-blue-700',
   discussing: 'bg-purple-100 text-purple-700',
@@ -11,7 +13,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 interface Props {
-  status: string;
+  status: TaskStatus;
 }
 
 export function TaskStatusBadge({ status }: Props) {

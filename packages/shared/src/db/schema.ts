@@ -26,6 +26,7 @@ export const tasks = sqliteTable('tasks', {
   discussion: text('discussion'),
   plan: text('plan'),
   result: text('result'),
+  errorMessage: text('error_message'),
   executionPrompt: text('execution_prompt'),
   ciSteps: text('ci_steps', { mode: 'json' }).$type<
     { name: string; command: string }[]

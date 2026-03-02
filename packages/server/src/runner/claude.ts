@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import type { Config } from '@solitary-coding/shared';
 
 export interface ClaudeResult {
@@ -9,6 +9,8 @@ export interface ClaudeResult {
 }
 
 export class ClaudeCli {
+  private currentProcess: ChildProcess | null = null;
+
   constructor(
     private config: Config,
     private projectRoot: string,
@@ -24,14 +26,27 @@ export class ClaudeCli {
     return this.exec(['--yes', '--dangerously-skip-permissions', prompt]);
   }
 
+  /** Abort the currently running process, if any. */
+  abort(): boolean {
+    if (this.currentProcess) {
+      this.currentProcess.kill('SIGTERM');
+      this.currentProcess = null;
+      return true;
+    }
+    return false;
+  }
+
   private exec(args: string[]): Promise<ClaudeResult> {
     const startTime = Date.now();
     return new Promise((resolve, reject) => {
       const proc = spawn('claude', args, {
         cwd: this.projectRoot,
         timeout: this.config.claude.timeout,
+        shell: true,
         env: { ...process.env },
       });
+
+      this.currentProcess = proc;
 
       let stdout = '';
       let stderr = '';
@@ -44,6 +59,7 @@ export class ClaudeCli {
       });
 
       proc.on('close', (code) => {
+        this.currentProcess = null;
         resolve({
           stdout,
           stderr,
@@ -53,6 +69,7 @@ export class ClaudeCli {
       });
 
       proc.on('error', (err) => {
+        this.currentProcess = null;
         reject(new Error(`Claude Code CLI error: ${err.message}`));
       });
     });
@@ -60,7 +77,7 @@ export class ClaudeCli {
 
   static async isInstalled(): Promise<boolean> {
     return new Promise((resolve) => {
-      const proc = spawn('claude', ['--version']);
+      const proc = spawn('claude', ['--version'], { shell: true });
       proc.on('close', (code) => resolve(code === 0));
       proc.on('error', () => resolve(false));
     });

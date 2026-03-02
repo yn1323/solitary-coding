@@ -10,14 +10,14 @@ import { detectCiSteps, runCi } from './phases/ci.js';
 import { mergeTask } from './phases/merge.js';
 import { eq, asc, desc } from 'drizzle-orm';
 import { tasks, executionLogs } from '@solitary-coding/shared/db/schema';
-import fs from 'node:fs';
-import path from 'node:path';
 
 export class TaskRunner {
   private timer: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
   private isPaused = false;
   private currentTaskId: number | null = null;
+  private currentPhase: string | null = null;
+  private cancelRequested = false;
   private claude: ClaudeCli;
   private git: GitOps;
 
@@ -47,7 +47,10 @@ export class TaskRunner {
 
   async triggerManually() {
     if (this.isRunning) throw new Error('Already running');
-    await this.tick();
+    // Fire-and-forget: don't block the HTTP response
+    this.tick().catch((err) =>
+      console.error('Manual trigger failed:', err),
+    );
   }
 
   togglePause(): boolean {
@@ -60,8 +63,29 @@ export class TaskRunner {
       isRunning: this.isRunning,
       isPaused: this.isPaused,
       currentTaskId: this.currentTaskId,
+      currentPhase: this.currentPhase,
       timerActive: this.timer !== null,
     };
+  }
+
+  async cancelCurrentTask(): Promise<boolean> {
+    if (!this.isRunning || this.currentTaskId === null) {
+      return false;
+    }
+
+    this.cancelRequested = true;
+    this.claude.abort();
+
+    await this.db
+      .update(tasks)
+      .set({
+        status: 'stopped',
+        errorMessage: 'Cancelled by user',
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, this.currentTaskId));
+
+    return true;
   }
 
   private async tick() {
@@ -72,6 +96,8 @@ export class TaskRunner {
     } finally {
       this.isRunning = false;
       this.currentTaskId = null;
+      this.currentPhase = null;
+      this.cancelRequested = false;
     }
   }
 
@@ -93,14 +119,14 @@ export class TaskRunner {
       .orderBy(desc(tasks.completedAt));
 
     // Phase 1: Prioritize
-    await this.updateStatus(pendingTasks[0].id, 'prioritizing');
+    this.currentPhase = 'prioritizing';
     await prioritizeTasks(pendingTasks, completedTasks, this.claude, this.db);
 
-    // Pick top priority task
+    // Re-fetch pending tasks after prioritization to get correct order
     const [topTask] = await this.db
       .select()
       .from(tasks)
-      .where(eq(tasks.status, 'prioritizing'))
+      .where(eq(tasks.status, 'pending'))
       .orderBy(asc(tasks.priority))
       .limit(1);
 
@@ -109,23 +135,27 @@ export class TaskRunner {
 
     try {
       // Phase 2: Discuss
+      this.currentPhase = 'discussing';
       await this.updateStatus(topTask.id, 'discussing');
       const discussion = await discussTask(
         topTask,
         this.claude,
         this.projectRoot,
       );
-      await this.saveDocument(topTask.id, 'discussion', discussion);
+      await this.db
+        .update(tasks)
+        .set({ discussion, updatedAt: new Date() })
+        .where(eq(tasks.id, topTask.id));
       await this.logPhase(topTask.id, 'discuss', '', discussion);
 
       // Phase 3: Plan
+      this.currentPhase = 'planning';
       await this.updateStatus(topTask.id, 'planned');
       const { plan, executionPrompt } = await planTask(
         topTask,
         discussion,
         this.claude,
       );
-      await this.saveDocument(topTask.id, 'plan', plan);
       await this.db
         .update(tasks)
         .set({ plan, executionPrompt, updatedAt: new Date() })
@@ -133,10 +163,12 @@ export class TaskRunner {
       await this.logPhase(topTask.id, 'plan', '', plan);
 
       // Phase 4: Git branch + Execute
+      this.currentPhase = 'executing';
       await this.updateStatus(topTask.id, 'executing');
       const branchName = `task/${String(topTask.id).padStart(3, '0')}`;
       this.git.checkoutDefault(this.config.git.defaultBranch);
       this.git.createBranch(branchName);
+      const startTime = Date.now();
       await this.db
         .update(tasks)
         .set({ branchName, startedAt: new Date(), updatedAt: new Date() })
@@ -153,6 +185,7 @@ export class TaskRunner {
       );
 
       // Phase 5: CI with retry loop
+      this.currentPhase = 'testing';
       await this.updateStatus(topTask.id, 'testing');
       const ciSteps = await detectCiSteps(this.config, this.claude);
       await this.db
@@ -188,16 +221,20 @@ export class TaskRunner {
       }
 
       if (!ciSuccess) {
-        await this.updateStatus(topTask.id, 'stopped');
-        // Stop subsequent pending tasks
+        // Only fail the current task, leave other pending tasks alone
         await this.db
           .update(tasks)
-          .set({ status: 'stopped', updatedAt: new Date() })
-          .where(eq(tasks.status, 'pending'));
+          .set({
+            status: 'failed',
+            errorMessage: `CI failed after ${totalRetries} retries (max: ${this.config.ci.maxRetries})`,
+            updatedAt: new Date(),
+          })
+          .where(eq(tasks.id, topTask.id));
         return;
       }
 
       // Phase 6: Merge
+      this.currentPhase = 'merging';
       await mergeTask(branchName, this.git, this.config, this.claude);
 
       // Complete
@@ -207,16 +244,47 @@ export class TaskRunner {
         .set({ completedAt: new Date(), updatedAt: new Date() })
         .where(eq(tasks.id, topTask.id));
 
-      // Save result document
-      const resultContent = `# Task ${topTask.id}: ${topTask.title}\n\nStatus: Completed\nBranch: ${branchName}\n`;
-      await this.saveDocument(topTask.id, 'result', resultContent);
+      // Build enriched result
+      const totalDurationMs = Date.now() - startTime;
+      const totalDurationMin = (totalDurationMs / 60000).toFixed(1);
+      const resultContent = [
+        `# Task ${topTask.id}: ${topTask.title}`,
+        '',
+        `**Status:** Completed`,
+        `**Branch:** ${branchName}`,
+        `**Total Duration:** ${totalDurationMin} minutes`,
+        `**CI Retries:** ${totalRetries}`,
+        '',
+        '## Execution Output',
+        '',
+        '```',
+        execResult.stdout.slice(0, 10000),
+        '```',
+        '',
+        ...(ciSteps.length > 0
+          ? ['## CI Steps', '', ...ciSteps.map((step) => `- **${step.name}:** \`${step.command}\``)]
+          : []),
+      ].join('\n');
+
       await this.db
         .update(tasks)
         .set({ result: resultContent, updatedAt: new Date() })
         .where(eq(tasks.id, topTask.id));
     } catch (err) {
-      console.error(`Task ${topTask.id} failed:`, err);
-      await this.updateStatus(topTask.id, 'failed');
+      if (this.cancelRequested) {
+        // Task was cancelled, status already set to 'stopped'
+        return;
+      }
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`Task ${topTask.id} failed:`, errorMessage);
+      await this.db
+        .update(tasks)
+        .set({
+          status: 'failed',
+          errorMessage,
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, topTask.id));
     }
   }
 
@@ -230,21 +298,6 @@ export class TaskRunner {
       .where(eq(tasks.id, taskId));
   }
 
-  private async saveDocument(
-    taskId: number,
-    filename: string,
-    content: string,
-  ) {
-    const dir = path.join(
-      this.projectRoot,
-      '.solitary-coding',
-      'docs',
-      `task-${String(taskId).padStart(3, '0')}`,
-    );
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `${filename}.md`), content, 'utf-8');
-  }
-
   private async logPhase(
     taskId: number,
     phase: string,
@@ -253,11 +306,13 @@ export class TaskRunner {
     exitCode?: number,
     durationMs?: number,
   ) {
+    // Cap stored text to prevent DB bloat
+    const MAX_LOG_SIZE = 50_000;
     await this.db.insert(executionLogs).values({
       taskId,
       phase: phase as 'prioritize' | 'discuss' | 'plan' | 'execute' | 'ci' | 'fix',
-      input,
-      output,
+      input: input.length > MAX_LOG_SIZE ? input.slice(0, MAX_LOG_SIZE) + '\n...(truncated)' : input,
+      output: output.length > MAX_LOG_SIZE ? output.slice(0, MAX_LOG_SIZE) + '\n...(truncated)' : output,
       exitCode: exitCode ?? null,
       durationMs: durationMs ?? null,
       createdAt: new Date(),

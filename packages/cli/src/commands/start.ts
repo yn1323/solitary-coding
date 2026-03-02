@@ -69,10 +69,22 @@ export async function startCommand(targetDir?: string) {
 
   runner.startTimer();
 
-  serve({
+  const server = serve({
     fetch: app.fetch,
     port,
   });
+
+  // Graceful shutdown
+  const shutdown = () => {
+    console.log('\nShutting down...');
+    runner.stopTimer();
+    server.close(() => {
+      console.log('Server stopped.');
+      process.exit(0);
+    });
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
   console.log('');
   console.log('Solitary Coding is running!');

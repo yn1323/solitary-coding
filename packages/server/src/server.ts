@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -8,6 +9,9 @@ import { taskRoutes } from './routes/tasks.js';
 import { systemRoutes } from './routes/system.js';
 import { logRoutes } from './routes/logs.js';
 import type { Config } from '@solitary-coding/shared';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
 
 export interface ServerContext {
   db: ReturnType<typeof createDb>;
@@ -33,17 +37,17 @@ export function createServer(config: Config, projectRoot: string) {
   app.route('/api', systemRoutes);
   app.route('/api', logRoutes);
 
-  // Serve client static files
+  // Serve client static files (resolve relative to this package, not cwd)
   app.use(
     '/*',
     serveStatic({
-      root: './packages/client/dist',
+      root: clientDistPath,
     }),
   );
   app.use(
     '/*',
     serveStatic({
-      root: './packages/client/dist',
+      root: clientDistPath,
       path: 'index.html',
     }),
   );

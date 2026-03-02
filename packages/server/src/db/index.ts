@@ -27,6 +27,7 @@ export function createDb(dbPath: string) {
       discussion TEXT,
       plan TEXT,
       result TEXT,
+      error_message TEXT,
       execution_prompt TEXT,
       ci_steps TEXT,
       started_at INTEGER,
@@ -51,6 +52,13 @@ export function createDb(dbPath: string) {
       value TEXT NOT NULL
     );
   `);
+
+  // Migrations for existing databases
+  try {
+    sqlite.exec(`ALTER TABLE tasks ADD COLUMN error_message TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   const db = drizzle(sqlite, { schema });
   return db;

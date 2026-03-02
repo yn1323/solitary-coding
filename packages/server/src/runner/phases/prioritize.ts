@@ -35,7 +35,10 @@ Respond with ONLY a JSON array of task IDs in optimal order, e.g. [1, 3, 2]`;
   try {
     // Extract JSON array from response
     const match = result.stdout.match(/\[[\d,\s]+\]/);
-    if (!match) return;
+    if (!match) {
+      console.warn('Prioritize: could not parse task order from Claude response');
+      return;
+    }
 
     const orderedIds: number[] = JSON.parse(match[0]);
 
@@ -46,7 +49,7 @@ Respond with ONLY a JSON array of task IDs in optimal order, e.g. [1, 3, 2]`;
         .set({ priority: i, updatedAt: new Date() })
         .where(eq(tasks.id, orderedIds[i]));
     }
-  } catch {
-    // If parsing fails, keep existing order
+  } catch (err) {
+    console.error('Prioritize: failed to reorder tasks:', err);
   }
 }
